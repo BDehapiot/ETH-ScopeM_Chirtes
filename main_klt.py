@@ -8,6 +8,8 @@ from pystackreg import StackReg
 from czitools import extract_data
 from joblib import Parallel, delayed
 
+from klt import klt, klt_display
+
 #%% Comments ------------------------------------------------------------------
 
 '''
@@ -16,8 +18,8 @@ Comment #1
 ----------
 Something is wrong with:
 - 230616_RPE1_cycling_04_SIM².czi
-- 230616_RPE1_glucosestarvation_06_SIM².czi
-Acquisition was probably stopped prematurely
+- 230616_RPE1_glucosestatusarvation_06_SIM².czi
+Acquisition was probably statusopped prematurely
 
 Comment #2
 ----------
@@ -28,8 +30,22 @@ File name format has been modified for convenience
 #%% Parameters ----------------------------------------------------------------
 
 zoom = 0.2
-threshCoeff = 2
-minSize = 256
+
+# Feature detection
+feat_params = dict(
+    maxCorners=1000,
+    qualityLevel=0.001,
+    minDistance=5,
+    blockSize=5,
+	useHarrisDetector=True
+    )
+
+# Optical flow
+flow_params = dict(
+    winSize=(11, 11),
+    maxLevel=3,
+    criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 5, 0.01)
+    )
 
 #%% Initialize ----------------------------------------------------------------
 
@@ -59,7 +75,7 @@ class ImageData:
     def get_reg(self):
         sr = StackReg(StackReg.TRANSLATION)
         reg = sr.register_transform_stack(self.image, reference='previous')
-        return reg
+        return reg    
         
 #%% Process -------------------------------------------------------------------
 
@@ -73,76 +89,49 @@ image_data = Parallel(n_jobs=-1)(
 end = time.time()
 print(f'  {(end-start):5.3f} s')
 
-#%% 
+#%% Format results ------------------------------------------------------------
 
-mov = image_data[1].image
-mov = (mov / 256).astype('uint8')
+import pandas as pd
+import matplotlib.pyplot as plt
 
-# -----------------------------------------------------------------------------
+# Results DataFrame
+names, conds, dXY = [], [], []
+for data in image_data:
+    names.append(data.name) 
+    conds.append(data.cond) 
+    stack = data.image
+    stack = (stack / 256).astype('uint8')
+    klt_data = klt(stack, feat_params, flow_params)
+    dXY.append(np.nanmean(klt_data['dXY']))
 
-# Feature detection
-feat_params = dict(
-    maxCorners=1000,
-    qualityLevel=0.0001,
-    minDistance=7,
-    blockSize=7,
-	useHarrisDetector=True
-    )
+df = pd.DataFrame({
+    'Name': names,
+    'Condition': conds,
+    'dXY': dXY
+})
 
-# Optical flow
-flow_params = dict(
-    winSize=(21,21),
-    maxLevel=3,
-    criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
-    )
+# Boxplot
+df.boxplot(column='dXY', by='Condition')
+plt.suptitle('')  # This removes the default title pandas adds
+plt.xlabel('Condition')
+plt.ylabel('dXY')
+plt.show()   
 
-# -----------------------------------------------------------------------------
+#%% Display KLT ---------------------------------------------------------------
 
-klt_data = []
-features = np.zeros_like(mov)
-tracks = np.zeros_like(mov)
+# idx = 0
+# stack = data.image
+# stack = (stack / 256).astype('uint8')
+# klt_data = klt(stack, feat_params, flow_params)
+# diplays = klt_display(stack, klt_data)
 
-# Get frame & features (t0)
-frm0 = mov[0,:,:]
-f0 = cv2.goodFeaturesToTrack(
-    frm0, mask=None, **feat_params)
+# ftsRaw = diplays[0]
+# tksRaw = diplays[1]
+# ftsLab = diplays[2]
 
-for i in range(1, mov.shape[0]):
-    
-    # Get current image
-    img1 = mov[i,:,:]
-    
-    # Calculate optical flow (between t0 and current)
-    f1, st, err = cv2.calcOpticalFlowPyrLK(
-        frm0, img1, f0, None, **flow_params)
-    
-    # Select good features
-    valid_f1 = f1[st==1]
-    valid_f0 = f0[st==1]
-    
-    # Make a display
-    for j,(new,old) in enumerate(zip(valid_f1,valid_f0)):
-        
-        a, b = new.ravel().astype('int')
-        c, d = old.ravel().astype('int')
-        
-        tracks[i,:,:] = cv2.line(tracks[i,:,:], (a,b), (c,d), 255, 2)
-        tracks[i,:,:] = tracks[i,:,:] + tracks[i-1,:,:] // 1.5
-        features[i,:,:] = cv2.circle(features[i,:,:], (a,b), 1, 255, 1)
-        # tracks[i,:,:] = cv2.line(tracks[i,:,:], (a,b), (c,d), (255,255,255), 1)
-        # features[i,:,:] = cv2.circle(features[i,:,:], (a,b), 1, (255,255,255), 1)
-        
-    # Update previous image & features 
-    frm0 = img1
-    f0 = valid_f1.reshape(-1,1,2) 
-
-    klt_data.append((f1.shape[0]))
-    
-tracks = tracks
-features = features
-
-import napari
-viewer = napari.Viewer()
-viewer.add_image(mov)
-viewer.add_image(features, blending='additive')
-viewer.add_image(tracks, blending='additive')
+# import napari
+# viewer = napari.Viewer()
+# viewer.add_image(stack)
+# # viewer.add_image(ftsRaw, blending='additive')
+# viewer.add_image(tksRaw, blending='additive')
+# viewer.add_labels(ftsLab, blending='additive')
