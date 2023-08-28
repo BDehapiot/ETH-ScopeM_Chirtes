@@ -1,6 +1,7 @@
 #%% Imports -------------------------------------------------------------------
 
 import time
+import napari
 import numpy as np
 from pathlib import Path
 from pystackreg import StackReg
@@ -109,3 +110,10 @@ plt.suptitle('')  # This removes the default title pandas adds
 plt.xlabel('Condition')
 plt.ylabel('MSE')
 plt.show()    
+
+#%% Displays ------------------------------------------------------------------
+
+idx = 0
+viewer = napari.Viewer()
+viewer.add_image(image_data[idx].image)
+viewer.add_image(image_data[idx].mask)

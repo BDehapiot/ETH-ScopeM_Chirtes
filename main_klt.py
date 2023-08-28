@@ -119,19 +119,19 @@ plt.show()
 
 #%% Display KLT ---------------------------------------------------------------
 
-# idx = 0
-# stack = data.image
-# stack = (stack / 256).astype('uint8')
-# klt_data = klt(stack, feat_params, flow_params)
-# diplays = klt_display(stack, klt_data)
+idx = 7
+stack = image_data[idx].image
+stack = (stack / 256).astype('uint8')
+klt_data = klt(stack, feat_params, flow_params)
+diplays = klt_display(stack, klt_data)
 
-# ftsRaw = diplays[0]
-# tksRaw = diplays[1]
-# ftsLab = diplays[2]
+ftsRaw = diplays[0]
+tksRaw = diplays[1]
+ftsLab = diplays[2]
 
-# import napari
-# viewer = napari.Viewer()
-# viewer.add_image(stack)
-# # viewer.add_image(ftsRaw, blending='additive')
-# viewer.add_image(tksRaw, blending='additive')
-# viewer.add_labels(ftsLab, blending='additive')
+import napari
+viewer = napari.Viewer()
+viewer.add_image(stack)
+# viewer.add_image(ftsRaw, blending='additive')
+viewer.add_image(tksRaw, blending='additive')
+viewer.add_labels(ftsLab, blending='additive')
